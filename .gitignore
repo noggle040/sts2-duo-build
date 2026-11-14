@@ -1,0 +1,24 @@
+# Do not commit owned game assets, third-party SDKs, signing keys, or credentials.
+*.pck
+*.ipa
+*.app/
+*.mobileprovision
+*.p12
+*.cer
+*.key
+*.pem
+*.secret
+*.env
+config.sh
+!config.example.sh
+sts2.dll
+SlayTheSpire2.exe
+data_sts2_windows_x86_64/
+data_sts2_macos_arm64/
+ios-libs/
+fmod-ios/
+work/
+stage/
+__pycache__/
+*.pyc
+.DS_Store
