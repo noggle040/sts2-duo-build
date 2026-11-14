@@ -1,0 +1,49 @@
+name: iOS port toolchain preflight (no game assets)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/source-preflight.yml'
+      - 'scripts/**'
+      - 'README.md'
+permissions:
+  contents: read
+jobs:
+  toolchain:
+    runs-on: macos-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout build-only scripts
+        uses: actions/checkout@v4
+      - name: Install .NET 9 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Check Xcode and .NET
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          dotnet --info
+      - name: Download public iOS port source only
+        run: |
+          set -euo pipefail
+          git clone --depth=1 https://github.com/jhaizhou-ops/sts2-ios.git "$RUNNER_TEMP/sts2-ios"
+      - name: Compile open-source assembly weaver
+        run: |
+          set -euo pipefail
+          dotnet build "$RUNNER_TEMP/sts2-ios/src/STS2Weaver/STS2Weaver.csproj" -c Release
+      - name: Validate port patch manifest
+        env:
+          PORT_PATH: ${{ runner.temp }}/sts2-ios
+        run: |
+          set -euo pipefail
+          python3 - <<'PYCODE'
+          import json, os
+          from pathlib import Path
+          p=Path(os.environ['PORT_PATH'])/'src/STS2MobileIos/manifest.json'
+          m=json.loads(p.read_text())
+          assert isinstance(m.get('patches'),list) and len(m['patches'])>=30
+          assert all(x.get('targetType') and x.get('targetMethod') for x in m['patches'])
+          print(f"Found {len(m['patches'])} patch targets in upstream manifest")
+          print('Source-only preflight succeeded. No IPA was produced.')
+          PYCODE
