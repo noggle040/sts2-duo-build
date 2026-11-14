@@ -19,7 +19,7 @@ def parse_cli(data: bytes) -> dict[str, set[str]]:
     def u32(p):
         return struct.unpack_from('<I', data, p)[0]
     pe=u32(0x3c)
-    if data[pe:pe+4] != b'PE\\x00\\x00':
+    if data[pe:pe+4] != bytes((80,69,0,0)):
         raise MetadataError('Not a PE image')
     coff=pe+4
     nsec=u16(coff+2)
