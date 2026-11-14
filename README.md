@@ -36,3 +36,23 @@ A separate community project, [MikeMikerson/STS2 Mobile](https://github.com/Mike
 - The user's original Windows v0.107.1 files are not imported by this launcher; it retrieves a supported game version from Steam.
 
 The custom native port build workflows here remain available as a fallback or for device-specific work. No game binaries or signing materials are stored here.
+
+## Offline-only route (preferred: no Steam sign-in on the iPhone)
+
+Do **not** use a launcher requiring Steam authentication. A different open-source native port, [FlyingViet/sts2-ios-launch](https://github.com/FlyingViet/sts2-ios-launch), documents support for the user's **Windows Steam v0.107.1** game files and an optional Steam Cloud sign-in that can be skipped. It has an iPhone Duo layout path but requires **Xcode 27.1 or newer** to fill both Duo displays. This route avoids Steam account credentials altogether after the user has obtained the owned files.
+
+On a properly provisioned **macOS** builder with access to the user's *private* owned game folder and the licensed dependencies, the documented command is:
+
+```sh
+git clone https://github.com/FlyingViet/sts2-ios-launch.git
+cd sts2-ios-launch
+./build.sh --unsigned --no-ota --game '/private/path/to/Slay the Spire 2'
+```
+
+The port documents `build/SlayTheSpire2.ipa` as output. `--unsigned` is intended for signing later using a personally controlled sideloading service, and `--no-ota` disables the port's script-update checks. **Do not sign into Steam at first launch**; the port says its save-sync login can be skipped. Build and test the app before treating it as safe or compatible.
+
+### Outstanding build constraints
+- This repo is public. Never commit or upload game files (including the resulting complete IPA), Apple IDs, passwords, tokens, or proprietary SDKs to public repository history, releases, or Actions artifacts.
+- The previously tested default GitHub macOS runner reported **Xcode 26.6** (not sufficient for the port's native iPhone Duo screen integration). Select a macOS environment with Xcode 27.1+ for the full Duo experience.
+- GitHub Actions has no access to ChatGPT's connected Google Drive. An authenticated **private** means of delivering your owned game files to the Mac is required; the present workflows do not do that.
+- A successful source preflight or matching assembly symbols is **not** a compiled or device-tested game. No complete IPA has been produced here.
