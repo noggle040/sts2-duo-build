@@ -15,7 +15,7 @@ A preparation repository for a **legitimately owned Windows Steam copy of Slay t
 With your own game files on a private machine:
 
 ```sh
-python3 scripts/sts2_preflight.py '/path/to/data_sts2_windows_x86_64/sts2.dll'
+python3 scripts/sts2_preflight.py '/path/to/data_sts2_windows_x86_64/sts2.dll' '/path/to/sts2-ios/src/STS2MobileIos/manifest.json'
 python3 scripts/stage_windows_game.py '/path/to/Slay the Spire 2' '/path/to/empty-stage'
 ```
 
