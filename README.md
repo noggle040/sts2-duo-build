@@ -1,5 +1,12 @@
 # Slay the Spire 2 → iPhone Duo (public, code-only)
 
+## Stage 4: offline Duo IPA builder
+
+The [Stage 3 Xcode 27 validation](.github/workflows/xcode27-duo-readiness.yml) succeeded on GitHub's Apple Silicon `xcode-27` runner. The new [Stage 4 manual workflow](.github/workflows/private-offline-ipa.yml) uses the pinned [FlyingViet offline port](https://github.com/FlyingViet/sts2-ios-launch) and `--unsigned --no-ota`. It targets the user's *already-owned* Windows Steam v0.107.1 installation. No Steam sign-in is requested on the iPhone.
+
+**The final IPA has not been compiled.** To protect the user's private game files and keep the game-containing IPA out of public GitHub, the workflow requires separate Google Drive authentication via an encrypted Actions secret. See [private setup instructions](docs/PRIVATE_DRIVE_BUILD.md). The cloud GitHub runner cannot reuse the Google Drive connection from ChatGPT.
+
+
 A preparation repository for a **legitimately owned Windows Steam copy of Slay the Spire 2**, using the open-source [sts2-ios port](https://github.com/jhaizhou-ops/sts2-ios) as a starting point. **No game binaries or proprietary SDKs are included.**
 
 ## Verified inputs (not included)
