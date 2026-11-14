@@ -1,0 +1,124 @@
+name: Stage 4 - Private offline Duo IPA build
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  offline-ipa:
+    runs-on: xcode-27
+    timeout-minutes: 180
+    env:
+      INPUT_FOLDER_ID: "1lBeSs_qBpZbmfFbvcuhRdCUUlrCD1dIk"
+      OUTPUT_FOLDER_ID: "1wO88P2wMpF84SIhWXikCmiV5cIdfRmSj"
+      PORT_SHA: "e4a8b82ffa10d571c3144ef7ce2612b707e559fb"
+    steps:
+      - name: Checkout public, code-only build configuration
+        uses: actions/checkout@v4
+
+      - name: Confirm Xcode 27.1 or later for Duo
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          python3 - <<'PY'
+          import platform, subprocess, re
+          assert platform.machine() == 'arm64', 'Apple Silicon runner required'
+          s=subprocess.check_output(['xcodebuild','-version'], text=True)
+          v=re.search(r'Xcode\s+(\d+)(?:\.(\d+))?', s)
+          assert v and (int(v.group(1)),int(v.group(2) or 0)) >= (27,1), 'Xcode >=27.1 required for iPhone Duo layouts'
+          PY
+          df -h .
+
+      - name: Set up Google Drive authentication (secret only)
+        shell: bash
+        env:
+          DRIVE_CONFIG_SECRET: ${{ secrets.STS2_RCLONE_CONFIG }}
+        run: |
+          set -euo pipefail
+          if [ -z "$DRIVE_CONFIG_SECRET" ]; then
+            echo "::error::Missing STS2_RCLONE_CONFIG. See docs/PRIVATE_DRIVE_BUILD.md. No game files were downloaded."
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$DRIVE_CONFIG_SECRET" > "$RUNNER_TEMP/sts2-rclone.conf"
+          python3 - <<'PY'
+          import configparser, os
+          cfg=configparser.ConfigParser()
+          cfg.read(os.path.join(os.environ['RUNNER_TEMP'],'sts2-rclone.conf'))
+          assert cfg.has_section('sts2drive'), 'Expected [sts2drive] section in rclone configuration'
+          assert cfg.get('sts2drive','type',fallback='')=='drive', 'Expected Google Drive remote'
+          assert cfg.has_option('sts2drive','token'), 'Expected OAuth token'
+          PY
+          echo 'RCLONE_CONFIG=$RUNNER_TEMP/sts2-rclone.conf' >> "$GITHUB_ENV"
+          echo 'Google Drive secret loaded without printing tokens'
+
+      - name: Install rclone on ephemeral cloud Mac
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew install rclone
+          rclone version | head -n 1
+
+      - name: Fetch personally owned game files from private Google Drive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/sts2-owned-game"
+          rclone copy --config "$RUNNER_TEMP/sts2-rclone.conf" \
+            --drive-root-folder-id "$INPUT_FOLDER_ID" \
+            sts2drive: "$RUNNER_TEMP/sts2-owned-game" \
+            --transfers 4 --checkers 8 --quiet
+          test -s "$RUNNER_TEMP/sts2-owned-game/SlayTheSpire2.pck"
+          test -s "$RUNNER_TEMP/sts2-owned-game/data_sts2_windows_x86_64/sts2.dll"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])/'sts2-owned-game'
+          assert (root/'release_info.json').is_file(),'release_info.json missing'
+          version=json.loads((root/'release_info.json').read_text())['version']
+          assert version=='v0.107.1',f'This pinned port was prepared for v0.107.1, got {version}'
+          print('Verified locally owned v0.107.1 game file layout. No Steam sign-in.')
+          PY
+
+      - name: Download audited offline port source at pinned commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/sts2-offline-port"
+          cd "$RUNNER_TEMP/sts2-offline-port"
+          git init -q
+          git remote add origin https://github.com/FlyingViet/sts2-ios-launch.git
+          git fetch --depth=1 origin "$PORT_SHA"
+          git checkout --detach -q FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$PORT_SHA"
+          bash -n build.sh
+
+      - name: Compile full native iOS game (unsigned; no Steam credentials)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/sts2-offline-port"
+          bash build.sh --unsigned --no-ota --game "$RUNNER_TEMP/sts2-owned-game"
+          test -s build/SlayTheSpire2.ipa
+
+      - name: Upload game-containing IPA to private Drive folder ONLY
+        shell: bash
+        run: |
+          set -euo pipefail
+          ipa="$RUNNER_TEMP/sts2-offline-port/build/SlayTheSpire2.ipa"
+          name="SlayTheSpire2-Duo-v0.107.1-$(date -u +%Y%m%dT%H%M%SZ).ipa"
+          rclone copyto --config "$RUNNER_TEMP/sts2-rclone.conf" \
+            --drive-root-folder-id "$OUTPUT_FOLDER_ID" \
+            "$ipa" "sts2drive:$name" --quiet
+          echo "Uploaded private IPA to the output Google Drive folder." >> "$GITHUB_STEP_SUMMARY"
+          echo "No IPA/game files have been published as GitHub artifacts." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Clean private game files and OAuth token from runner
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          rm -rf "$RUNNER_TEMP/sts2-owned-game" "$RUNNER_TEMP/sts2-offline-port"
+          rm -f "$RUNNER_TEMP/sts2-rclone.conf"
+          echo 'Ephemeral runner staging cleaned'
