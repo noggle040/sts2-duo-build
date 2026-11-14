@@ -1,6 +1,9 @@
 name: Stage 4 - Private offline Duo IPA build
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/private-offline-ipa.yml'
 permissions:
   contents: read
 
