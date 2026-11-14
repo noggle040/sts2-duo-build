@@ -50,7 +50,6 @@ jobs:
           assert cfg.get('sts2drive','type',fallback='')=='drive', 'Expected Google Drive remote'
           assert cfg.has_option('sts2drive','token'), 'Expected OAuth token'
           PY
-          echo 'RCLONE_CONFIG=$RUNNER_TEMP/sts2-rclone.conf' >> "$GITHUB_ENV"
           echo 'Google Drive secret loaded without printing tokens'
 
       - name: Install rclone on ephemeral cloud Mac
@@ -80,6 +79,8 @@ jobs:
           assert version=='v0.107.1',f'This pinned port was prepared for v0.107.1, got {version}'
           print('Verified locally owned v0.107.1 game file layout. No Steam sign-in.')
           PY
+          # Delete the reusable Drive token before executing third-party port code.
+          rm -f "$RUNNER_TEMP/sts2-rclone.conf"
 
       - name: Download audited offline port source at pinned commit
         shell: bash
@@ -104,8 +105,12 @@ jobs:
 
       - name: Upload game-containing IPA to private Drive folder ONLY
         shell: bash
+        env:
+          DRIVE_CONFIG_SECRET: ${{ secrets.STS2_RCLONE_CONFIG }}
         run: |
           set -euo pipefail
+          umask 077
+          printf '%s' "$DRIVE_CONFIG_SECRET" > "$RUNNER_TEMP/sts2-rclone.conf"
           ipa="$RUNNER_TEMP/sts2-offline-port/build/SlayTheSpire2.ipa"
           name="SlayTheSpire2-Duo-v0.107.1-$(date -u +%Y%m%dT%H%M%SZ).ipa"
           rclone copyto --config "$RUNNER_TEMP/sts2-rclone.conf" \
