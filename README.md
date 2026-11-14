@@ -25,3 +25,14 @@ The staging script creates symbolic links for compatible managed assemblies unde
 A working game needs authenticated *private* staging of game assets, Godot 4.5.1 Mono + iOS templates, .NET 9, licensed iOS FMOD/Spine libraries, Xcode signing with the necessary memory entitlement, the separate large PCK file, and an actual iPhone test. Consult the [upstream build guide](https://github.com/jhaizhou-ops/sts2-ios/blob/main/AGENTS.md).
 
 **Never add Steam game content, third-party proprietary binaries, Apple signing materials, or secrets to this public repository, including Actions artifacts.** A .gitignore file is not a security boundary.
+
+## Fastest playable test (alternative launcher, no custom build)
+
+A separate community project, [MikeMikerson/STS2 Mobile](https://github.com/MikeMikerson/sts2-ios-launcher-public), provides an **unsigned, game-free** IPA that can be signed with Signulous/AltStore/SideStore and then download the owner's game from Steam inside the app. The launcher is **not made or verified by this repository**, and it requires authorizing a Steam session in a third-party app. Read its source and terms before authorizing your account.
+
+- [STS2 Mobile 1.1.1 IPA (release, 2026-11-13)](https://github.com/MikeMikerson/sts2-ios-launcher-public/releases/download/v1.1.1/STS2Mobile-1.1.1.ipa)
+- Expected release SHA-256: `4aa3cd06cf3907058ed42653a5da67f818fd789da35e933b99271a048529e0d8` (GitHub API asset digest; not independently downloaded here)
+- Upstream documents iOS 15+ and a tested Steam beta v0.113.0. **iPhone Duo layout and this signing service are unverified.**
+- The user's original Windows v0.107.1 files are not imported by this launcher; it retrieves a supported game version from Steam.
+
+The custom native port build workflows here remain available as a fallback or for device-specific work. No game binaries or signing materials are stored here.
