@@ -1,0 +1,50 @@
+name: Stage 3 - Xcode 27 Duo readiness
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/xcode27-duo-readiness.yml'
+permissions:
+  contents: read
+jobs:
+  duo-readiness:
+    runs-on: xcode-27
+    timeout-minutes: 15
+    steps:
+      - name: Check out build configuration
+        uses: actions/checkout@v4
+      - name: Verify Xcode 27.1 or newer on Apple silicon
+        shell: bash
+        run: |
+          set -euo pipefail
+          uname -m
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          python3 - <<'PY'
+          import platform, re, subprocess
+          assert platform.machine() == 'arm64', 'This build requires an Apple Silicon macOS runner'
+          s=subprocess.check_output(['xcodebuild','-version'],text=True)
+          m=re.search(r'Xcode\s+(\d+)(?:\.(\d+))?',s)
+          assert m and (int(m.group(1)),int(m.group(2) or 0)) >= (27,1), f'Need Xcode >= 27.1, got: {s}'
+          print('Ready for the iPhone Duo iOS 27 native screen layout')
+          PY
+      - name: Download pinned public offline port
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/offline-port"
+          cd "$RUNNER_TEMP/offline-port"
+          git init -q
+          git remote add origin https://github.com/FlyingViet/sts2-ios-launch.git
+          git fetch --depth=1 origin e4a8b82ffa10d571c3144ef7ce2612b707e559fb
+          git checkout -q --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = e4a8b82ffa10d571c3144ef7ce2612b707e559fb
+          bash -n build.sh
+          grep -q -- '--unsigned' build.sh
+          grep -q -- '--no-ota' build.sh
+          echo 'Pinned port source passed shell syntax validation.'
+      - name: Summarize
+        shell: bash
+        run: |
+          echo 'Xcode 27.1+ and offline-capable iPhone Duo port verified.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'This job does NOT access or upload proprietary game files and produces no IPA.' >> "$GITHUB_STEP_SUMMARY"
