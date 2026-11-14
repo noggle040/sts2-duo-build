@@ -32,6 +32,31 @@ jobs:
         run: |
           set -euo pipefail
           dotnet build "$RUNNER_TEMP/sts2-ios/src/STS2Weaver/STS2Weaver.csproj" -c Release
+      - name: Exercise assembly parser and Windows layout shim
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/smoke"
+          cat > "$RUNNER_TEMP/smoke/Test.csproj" <<'XML'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup><TargetFramework>net9.0</TargetFramework></PropertyGroup>
+          </Project>
+          XML
+          cat > "$RUNNER_TEMP/smoke/Fixture.cs" <<'CS'
+          namespace Smoke {
+            public static class Fixture {
+              public static void Ping() { }
+            }
+          }
+          CS
+          dotnet build "$RUNNER_TEMP/smoke/Test.csproj" -c Release
+          printf '%s\n' '{"patches":[{"targetType":"Smoke.Fixture","targetMethod":"Ping"}]}' > "$RUNNER_TEMP/smoke/manifest.json"
+          python3 scripts/sts2_preflight.py "$RUNNER_TEMP/smoke/bin/Release/net9.0/Test.dll" "$RUNNER_TEMP/smoke/manifest.json"
+          mkdir -p "$RUNNER_TEMP/win-game/data_sts2_windows_x86_64"
+          cp "$RUNNER_TEMP/smoke/bin/Release/net9.0/Test.dll" "$RUNNER_TEMP/win-game/data_sts2_windows_x86_64/sts2.dll"
+          printf '%s' smoke > "$RUNNER_TEMP/win-game/SlayTheSpire2.pck"
+          python3 scripts/stage_windows_game.py "$RUNNER_TEMP/win-game" "$RUNNER_TEMP/staged"
+          test -L "$RUNNER_TEMP/staged/Resources/data_sts2_macos_arm64/sts2.dll"
+          test -L "$RUNNER_TEMP/staged/Resources/Slay the Spire 2.pck"
       - name: Validate port patch manifest
         env:
           PORT_PATH: ${{ runner.temp }}/sts2-ios
