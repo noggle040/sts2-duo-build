@@ -1,0 +1,79 @@
+name: Stage 2 - iOS compiler environment
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/ios-toolchain.yml'
+permissions:
+  contents: read
+
+jobs:
+  ios-environment:
+    name: Verify macOS iOS NativeAOT prerequisites
+    runs-on: macos-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout open build configuration
+        uses: actions/checkout@v4
+      - name: Set up .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Verify Apple build tools and SDK
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-path
+          xcrun --sdk iphonesimulator --show-sdk-path
+          dotnet --version
+          echo 'Apple build tools ready'
+      - name: Install official Godot 4.5.1 Mono editor
+        env:
+          GODOT_URL: https://github.com/godotengine/godot/releases/download/4.5.1-stable/Godot_v4.5.1-stable_mono_macos.universal.zip
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --silent --show-error "$GODOT_URL" --output "$RUNNER_TEMP/godot-mono.zip"
+          mkdir -p "$RUNNER_TEMP/godot-mono"
+          unzip -q "$RUNNER_TEMP/godot-mono.zip" -d "$RUNNER_TEMP/godot-mono"
+          GODOT_BIN="$(find "$RUNNER_TEMP/godot-mono" -type f -path '*/Contents/MacOS/Godot' -print -quit)"
+          if [ -z "$GODOT_BIN" ]; then
+            echo 'Godot Mono executable not found inside downloaded archive' >&2
+            find "$RUNNER_TEMP/godot-mono" -maxdepth 6 -name '*Godot*' -print
+            exit 1
+          fi
+          chmod +x "$GODOT_BIN"
+          "$GODOT_BIN" --headless --version | tee "$RUNNER_TEMP/godot-version.txt"
+          grep -q '4.5.1.*mono' "$RUNNER_TEMP/godot-version.txt"
+          echo "GODOT_BIN=$GODOT_BIN" >> "$GITHUB_ENV"
+          echo "Official Godot 4.5.1 Mono editor installed" >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify exact Godot .NET export template release exists
+        env:
+          TEMPLATE_URL: https://github.com/godotengine/godot/releases/download/4.5.1-stable/Godot_v4.5.1-stable_mono_export_templates.tpz
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error --retry 3 --range 0-1023 "$TEMPLATE_URL" -o "$RUNNER_TEMP/template-header.bin"
+          test -s "$RUNNER_TEMP/template-header.bin"
+          echo 'Official Godot Mono iOS export templates are available.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Templates are not installed in this stage (archive is >1 GB).' >> "$GITHUB_STEP_SUMMARY"
+      - name: Validate open-source iOS port source tree
+        run: |
+          set -euo pipefail
+          git clone --depth=1 https://github.com/jhaizhou-ops/sts2-ios.git "$RUNNER_TEMP/sts2-ios"
+          test -f "$RUNNER_TEMP/sts2-ios/ios-export/build-ios.sh"
+          test -f "$RUNNER_TEMP/sts2-ios/ios-export/sts2.csproj"
+          test -f "$RUNNER_TEMP/sts2-ios/src/STS2MobileIos/manifest.json"
+          dotnet build "$RUNNER_TEMP/sts2-ios/src/STS2Weaver/STS2Weaver.csproj" -c Release
+          echo 'Open-source port build script and IL weaver present.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Report remaining blockers
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          ### Stage 2 outcome
+          These checks do not compile the game or create an IPA. The build still requires:
+          - User-owned game files and managed dependencies delivered privately to a macOS builder
+          - Official Godot .NET iOS export templates (installed in the full-build stage)
+          - Properly licensed FMOD 2.03 iOS SDK and Spine-Godot 4.2 iOS libraries
+          - Compatible iOS build, Apple signing, increased-memory entitlement, and device validation
+          - Separate deployment of the approximately 1.9 GB PCK asset file
+          
+          No Steam files, signing credentials, or proprietary libraries are committed or uploaded as Actions artifacts.
+          EOF
